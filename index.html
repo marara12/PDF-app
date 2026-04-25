@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PDF ⇄ Image Converter</title>
+<title>Converter App</title>
 
 <style>
 body{
@@ -11,17 +11,40 @@ body{
   background:#fafafa;
   text-align:center;
   padding:20px;
+  color:#333;
 }
 
+/* tabs */
+.tabs{
+  display:flex;
+  max-width:420px;
+  margin:0 auto 15px;
+  background:white;
+  border-radius:14px;
+  overflow:hidden;
+}
+
+.tab{
+  flex:1;
+  padding:12px;
+  cursor:pointer;
+}
+
+.tab.active{
+  background:#ff8fab;
+  color:white;
+}
+
+/* card */
 .card{
   background:white;
   max-width:420px;
   margin:10px auto;
   padding:18px;
   border-radius:16px;
-  box-shadow:0 4px 10px rgba(0,0,0,0.08);
 }
 
+/* buttons */
 button{
   width:100%;
   margin-top:10px;
@@ -32,19 +55,24 @@ button{
   color:white;
 }
 
-button:active{
-  transform:scale(0.97);
+/* drop zone */
+.drop{
+  border:2px dashed #ff8fab;
+  border-radius:12px;
+  padding:20px;
+  margin-top:10px;
+  color:#888;
 }
 
-img{
+.drop.active{
+  background:#fff0f5;
+}
+
+/* preview */
+#preview img{
   width:100%;
   margin-top:10px;
   border-radius:10px;
-}
-
-.notice{
-  font-size:12px;
-  color:#777;
 }
 </style>
 
@@ -52,146 +80,172 @@ img{
 
 <body>
 
-<h2>PDF ⇄ Image Converter</h2>
+<h2>Converter App</h2>
 
-<!-- PDF→画像 -->
-<div class="card">
+<!-- tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('pdf2img')">PDF → 画像</div>
+  <div class="tab" onclick="switchTab('img2pdf')">画像 → PDF</div>
+</div>
+
+<!-- PDF → image -->
+<div id="pdf2img" class="card">
+
   <h3>PDF → 画像</h3>
 
-  <input type="file" id="pdfInput" accept="application/pdf">
+  <input type="file" id="pdfFile" accept="application/pdf">
 
-  <button id="pdfConvert">変換</button>
-  <button id="downloadImages">画像ダウンロード</button>
-  <button id="zipDownload">ZIPダウンロード</button>
+  <div class="drop" id="pdfDrop">ここにPDFをドラッグ&ドロップ</div>
 
-  <p class="notice" id="status">PDFを選択してください</p>
+  <button id="convertPdf">変換</button>
+  <button id="downloadImgs">画像保存</button>
+  <button id="zipDownload">ZIP保存</button>
+
 </div>
 
-<!-- 画像→PDF -->
-<div class="card">
+<!-- image → pdf -->
+<div id="img2pdf" class="card" style="display:none;">
+
   <h3>画像 → PDF</h3>
 
-  <input type="file" id="imgInput" accept="image/*" multiple>
+  <input type="file" id="imgFile" accept="image/*" multiple>
 
-  <button id="imgToPdf">PDFに変換</button>
+  <div class="drop" id="imgDrop">ここに画像をドラッグ&ドロップ</div>
 
-  <p class="notice">PDFはファイルアプリに保存されます</p>
+  <button id="convertImg">PDFに変換</button>
+
 </div>
 
-<!-- プレビュー -->
+<!-- preview -->
 <div class="card">
   <h3>プレビュー</h3>
   <div id="preview"></div>
 </div>
 
-<!-- ライブラリ（順番超重要） -->
+<!-- libs -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script>
 
-/* =====================
-   PDF.js worker設定（必須）
-===================== */
 pdfjsLib.GlobalWorkerOptions.workerSrc =
 "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
 
-/* =====================
-   グローバル
-===================== */
-let images = [];
-const preview = document.getElementById("preview");
-const status = document.getElementById("status");
+let images=[];
+const preview=document.getElementById("preview");
 
 /* =====================
-   PDF → 画像変換
+   tab
 ===================== */
-document.getElementById("pdfConvert").onclick = async () => {
+function switchTab(tab){
 
-  const file = document.getElementById("pdfInput").files[0];
-  if (!file) return alert("PDFを選んでください");
+  document.getElementById("pdf2img").style.display = tab==="pdf2img"?"block":"none";
+  document.getElementById("img2pdf").style.display = tab==="img2pdf"?"block":"none";
+}
 
-  try {
+/* =====================
+   DROP ZONE helper
+===================== */
+function setupDrop(zoneId, inputId, callback){
 
-    images = [];
-    preview.innerHTML = "";
-    status.textContent = "変換中…";
+  const zone=document.getElementById(zoneId);
+  const input=document.getElementById(inputId);
 
-    const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  zone.addEventListener("dragover",e=>{
+    e.preventDefault();
+    zone.classList.add("active");
+  });
 
-    for (let i = 1; i <= pdf.numPages; i++) {
+  zone.addEventListener("dragleave",()=>{
+    zone.classList.remove("active");
+  });
 
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2 });
+  zone.addEventListener("drop",e=>{
+    e.preventDefault();
+    zone.classList.remove("active");
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+    input.files = e.dataTransfer.files;
+    callback();
+  });
+}
 
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+/* =====================
+   PDF → images
+===================== */
+document.getElementById("convertPdf").onclick = async ()=>{
 
-      await page.render({ canvasContext: ctx, viewport }).promise;
+  const file=document.getElementById("pdfFile").files[0];
+  if(!file) return alert("PDFを選んでください");
 
-      const img = canvas.toDataURL("image/jpeg");
+  images=[];
+  preview.innerHTML="";
 
-      images.push(img);
+  const buffer=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buffer}).promise;
 
-      const el = document.createElement("img");
-      el.src = img;
-      preview.appendChild(el);
-    }
+  for(let i=1;i<=pdf.numPages;i++){
 
-    status.textContent = "変換完了 ✔";
+    const page=await pdf.getPage(i);
+    const viewport=page.getViewport({scale:2});
 
-  } catch (e) {
-    console.log(e);
-    status.textContent = "エラーが発生しました";
+    const canvas=document.createElement("canvas");
+    const ctx=canvas.getContext("2d");
+
+    canvas.width=viewport.width;
+    canvas.height=viewport.height;
+
+    await page.render({canvasContext:ctx,viewport}).promise;
+
+    const img=canvas.toDataURL("image/jpeg");
+
+    images.push(img);
+
+    const el=document.createElement("img");
+    el.src=img;
+    preview.appendChild(el);
   }
 };
 
 /* =====================
-   画像ダウンロード（iPhone対応）
+   download
 ===================== */
-document.getElementById("downloadImages").onclick = () => {
+document.getElementById("downloadImgs").onclick=()=>{
 
-  if (!images.length) return alert("先に変換してください");
+  if(!images.length) return alert("先に変換してください");
 
-  images.forEach((img, i) => {
+  images.forEach((img,i)=>{
 
-    const a = document.createElement("a");
-    a.href = img;
-    a.download = `page-${i + 1}.jpg`;
+    const a=document.createElement("a");
+    a.href=img;
+    a.download=`page-${i+1}.jpg`;
 
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
   });
-
-  status.textContent = "保存ダイアログを開きました";
 };
 
 /* =====================
-   ZIPダウンロード
+   ZIP
 ===================== */
-document.getElementById("zipDownload").onclick = async () => {
+document.getElementById("zipDownload").onclick=async()=>{
 
-  if (!images.length) return alert("先に変換してください");
+  if(!images.length) return alert("先に変換してください");
 
-  const zip = new JSZip();
+  const zip=new JSZip();
 
-  images.forEach((img, i) => {
-    zip.file(`page-${i + 1}.jpg`, img.split(",")[1], { base64: true });
+  images.forEach((img,i)=>{
+    zip.file(`page-${i+1}.jpg`,img.split(",")[1],{base64:true});
   });
 
-  const blob = await zip.generateAsync({ type: "blob" });
+  const blob=await zip.generateAsync({type:"blob"});
 
-  const url = URL.createObjectURL(blob);
+  const url=URL.createObjectURL(blob);
 
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "images.zip";
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="images.zip";
 
   document.body.appendChild(a);
   a.click();
@@ -201,39 +255,45 @@ document.getElementById("zipDownload").onclick = async () => {
 };
 
 /* =====================
-   画像 → PDF
+   image → pdf
 ===================== */
-document.getElementById("imgToPdf").onclick = async () => {
+document.getElementById("convertImg").onclick=async()=>{
 
-  const files = document.getElementById("imgInput").files;
-  if (!files.length) return alert("画像を選んでください");
+  const files=document.getElementById("imgFile").files;
+  if(!files.length) return alert("画像を選んでください");
 
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF();
+  const {jsPDF}=window.jspdf;
+  const pdf=new jsPDF();
 
-  for (let i = 0; i < files.length; i++) {
+  for(let i=0;i<files.length;i++){
 
-    const data = await new Promise(r => {
-      const reader = new FileReader();
-      reader.onload = e => r(e.target.result);
-      reader.readAsDataURL(files[i]);
+    const data=await new Promise(r=>{
+      const fr=new FileReader();
+      fr.onload=e=>r(e.target.result);
+      fr.readAsDataURL(files[i]);
     });
 
-    const img = new Image();
-    img.src = data;
+    const img=new Image();
+    img.src=data;
 
-    await new Promise(r => (img.onload = r));
+    await new Promise(r=>img.onload=r);
 
-    const w = pdf.internal.pageSize.getWidth();
-    const h = (img.height / img.width) * w;
+    const w=pdf.internal.pageSize.getWidth();
+    const h=(img.height/img.width)*w;
 
-    if (i !== 0) pdf.addPage();
+    if(i!==0) pdf.addPage();
 
-    pdf.addImage(img, "JPEG", 0, 0, w, h);
+    pdf.addImage(img,"JPEG",0,0,w,h);
   }
 
   pdf.save("images.pdf");
 };
+
+/* =====================
+   drag & drop init
+===================== */
+setupDrop("pdfDrop","pdfFile",()=>document.getElementById("convertPdf").click());
+setupDrop("imgDrop","imgFile",()=>document.getElementById("convertImg").click());
 
 </script>
 
