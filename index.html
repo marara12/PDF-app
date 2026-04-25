@@ -2,152 +2,224 @@
 <html>
 <head>
 <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>picoPDF</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>picoConverter</title>
 
 <style>
 body {
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
   background: #fafafa;
   text-align: center;
-  padding: 40px 20px;
+  padding: 25px 15px;
   color: #333;
 }
 
-h1 { font-size: 24px; }
-p { color: #777; font-size: 14px; }
-
-.container {
+.card {
   background: white;
-  padding: 40px 20px;
+  max-width: 360px;
+  margin: 15px auto;
+  padding: 20px;
   border-radius: 16px;
-  max-width: 320px;
-  margin: 30px auto;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  box-shadow: 0 4px 12px rgba(255, 182, 193, 0.15);
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 button {
-  margin-top: 20px;
-  background: #333;
-  color: white;
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
   border: none;
-  padding: 10px 18px;
-  border-radius: 12px;
+  border-radius: 14px;
+  background: #ff8fab;
+  color: white;
+  cursor: pointer;
+  transition: 0.2s;
 }
+
 button:active {
   transform: scale(0.95);
   background: #ff6f91;
 }
-  @keyframes pop {
-  0% { transform: scale(0.8); opacity: 0; }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); opacity: 1; }
+
+/* ローディング */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 4px solid #eee;
+  border-top: 4px solid #ff8fab;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 10px auto;
 }
 
-.success {
-  animation: pop 0.4s ease;
-  color: #ff6fa5;
-  font-weight: bold;
+@keyframes spin {
+  100% { transform: rotate(360deg); }
 }
-canvas {
-  max-width: 100%;
-  margin-top: 20px;
+
+/* プレビュー */
+#preview img {
+  width: 100%;
+  margin-top: 10px;
+  border-radius: 10px;
+  animation: fadeIn 0.3s ease;
 }
+
+/* メッセージ */
+.msg {
+  font-size: 14px;
+  margin-top: 8px;
+}
+
+.success { color: #ff6fa5; }
+.error { color: #ff4d4d; }
 </style>
 
 </head>
 
 <body>
 
-<h1>picoPDF</h1>
-<p>① PDFを選ぶ → ② 変換する</p>
+<h2 style="color:#ff6fa5;">picoConverter</h2>
 
-<div class="container">
- 
-  <input type="file" id="file" accept="application/pdf">
+<!-- PDF → 画像 -->
+<div class="card">
+  <h3>PDF → 画像</h3>
+  <input type="file" id="pdfFile" accept="application/pdf"><br>
+  <button id="toImg">変換する</button>
+
+  <div id="loading1" class="spinner" style="display:none;"></div>
+  <p id="msg1" class="msg"></p>
 </div>
-  <button id="convert">変換する</button>
-  <p id="empty">PDFを選択してください</p>
-  <p id="loading" style="display:none;">変換中…💭</p>
-  <p id="done" style="display:none;">保存しました！</p>
+
+<!-- 画像 → PDF -->
+<div class="card">
+  <h3>画像 → PDF</h3>
+  <input type="file" id="imgFile" accept="image/*" multiple><br>
+  <button id="toPdf">PDFにする</button>
+
+  <p id="msg2" class="msg"></p>
 </div>
 
-<canvas id="canvas"></canvas>
+<!-- プレビュー -->
+<div class="card">
+  <h3>プレビュー</h3>
+  <div id="preview"></div>
+</div>
 
+<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
+<!-- jsPDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 <script>
-let canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d");
+const preview = document.getElementById("preview");
 
-document.getElementById("convert").onclick = async () => {
-  const file = document.getElementById("file").files[0];
-  if (!file) {document.getElementById("empty").style.display = "none";
-    alert("PDFを選んでね！");
-    return;
+/* =========================
+   PDF → 画像
+========================= */
+document.getElementById("toImg").onclick = async () => {
+
+  const file = document.getElementById("pdfFile").files[0];
+  const msg = document.getElementById("msg1");
+
+  try {
+
+    if (!file) throw new Error("PDFを選んでね！");
+
+    preview.innerHTML = "";
+    msg.textContent = "";
+    document.getElementById("loading1").style.display = "block";
+
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({data: buffer}).promise;
+
+    for (let i = 1; i <= pdf.numPages; i++) {
+
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({scale: 2});
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({
+        canvasContext: ctx,
+        viewport
+      }).promise;
+
+      const img = document.createElement("img");
+      img.src = canvas.toDataURL("image/jpeg");
+      preview.appendChild(img);
+    }
+
+    msg.textContent = "できたよ〜！";
+    msg.className = "msg success";
+
+  } catch (e) {
+
+    msg.textContent = "エラー：うまく変換できなかったよ";
+    msg.className = "msg error";
+
+  } finally {
+    document.getElementById("loading1").style.display = "none";
   }
-const button = document.getElementById("convert");
-const fileInput = document.getElementById("file");
-const loading = document.getElementById("loading");
-const done = document.getElementById("done");
-
-// 最初はボタン押せない
-button.disabled = true;
-
-// ファイル選んだら押せる
-fileInput.addEventListener("change", () => {
-  button.disabled = !fileInput.files.length;
-});
-
-// 変換処理
-button.onclick = async () => {
-
-  const file = fileInput.files[0];
-  if (!file) {
-    alert("PDFを選んでね！");
-    return;
-  }
-
-  // 状態リセット
-  done.style.display = "none";
-  loading.style.display = "block";
-
-  const arrayBuffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-
-  const totalPages = pdf.numPages;
-
-  for (let i = 1; i <= totalPages; i++) {
-
-    // 進捗表示
-    loading.textContent = `変換中… ${i}/${totalPages}`;
-
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({scale: 2});
-
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-
-    await page.render({
-      canvasContext: ctx,
-      viewport: viewport
-    }).promise;
-
-    // ダウンロード
-    const link = document.createElement("a");
-    link.href = canvas.toDataURL("image/jpeg");
-    link.download = `page-${i}.jpg`;
-    link.click();
-  }
-
-  // 完了
-  loading.style.display = "none";
-  done.style.display = "block";
 };
 
+/* =========================
+   画像 → PDF
+========================= */
+document.getElementById("toPdf").onclick = async () => {
+
+  const files = document.getElementById("imgFile").files;
+  const msg = document.getElementById("msg2");
+
+  try {
+
+    if (!files.length) throw new Error("画像を選んでね！");
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+
+    for (let i = 0; i < files.length; i++) {
+
+      const data = await new Promise(resolve => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.readAsDataURL(files[i]);
+      });
+
+      const img = new Image();
+      img.src = data;
+
+      await new Promise(resolve => img.onload = resolve);
+
+      const w = pdf.internal.pageSize.getWidth();
+      const h = (img.height / img.width) * w;
+
+      if (i !== 0) pdf.addPage();
+
+      pdf.addImage(img, "JPEG", 0, 0, w, h);
+    }
+
+    pdf.save("images.pdf");
+
+    msg.textContent = "PDFに変換完了！";
+    msg.className = "msg success";
+
+  } catch (e) {
+
+    msg.textContent = "エラー：画像を読み込めなかったよ";
+    msg.className = "msg error";
+
+  }
+};
 </script>
 
 </body>
