@@ -37,10 +37,6 @@ button:active{
   transform:scale(0.97);
 }
 
-input{
-  margin-top:10px;
-}
-
 #preview img{
   width:100%;
   margin-top:10px;
@@ -55,13 +51,15 @@ input{
 <h2>picoConverter</h2>
 
 <div class="card">
+
   <h3>PDF → 画像</h3>
 
-  <input type="file" id="pdfFile" accept="application/pdf">
+  <input type="file" id="file" accept="application/pdf">
 
-  <button id="convertBtn">変換</button>
-  <button id="downloadBtn">ダウンロード</button>
-  <button id="zipBtn">ZIPダウンロード</button>
+  <button id="convert">変換</button>
+  <button id="download">画像保存</button>
+  <button id="zip">ZIP保存</button>
+
 </div>
 
 <div class="card">
@@ -72,109 +70,118 @@ input{
 <!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
+<!-- JSZip -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
 <script>
+
 /* =====================
-   ★重要：worker設定（これで死ぬバグ防止）
+   worker設定（超重要）
 ===================== */
 pdfjsLib.GlobalWorkerOptions.workerSrc =
 "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
 
-let images = [];
+let images=[];
+const preview=document.getElementById("preview");
 
 /* =====================
-   変換
+   PDF → 画像
 ===================== */
-document.getElementById("convertBtn").onclick = async () => {
+document.getElementById("convert").onclick = async ()=>{
 
-  const file = document.getElementById("pdfFile").files[0];
-  const preview = document.getElementById("preview");
+  const file=document.getElementById("file").files[0];
+  if(!file) return alert("PDFを選んでください");
 
-  if (!file) {
-    alert("PDFを選んでください");
-    return;
-  }
+  images=[];
+  preview.innerHTML="";
 
-  try {
+  const buffer=await file.arrayBuffer();
+  const pdf=await pdfjsLib.getDocument({data:buffer}).promise;
 
-    images = [];
-    preview.innerHTML = "";
+  for(let i=1;i<=pdf.numPages;i++){
 
-    const buffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+    const page=await pdf.getPage(i);
+    const viewport=page.getViewport({scale:2});
 
-    for (let i = 1; i <= pdf.numPages; i++) {
+    const canvas=document.createElement("canvas");
+    const ctx=canvas.getContext("2d");
 
-      const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2 });
+    canvas.width=viewport.width;
+    canvas.height=viewport.height;
 
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
+    await page.render({canvasContext:ctx,viewport}).promise;
 
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+    const img=canvas.toDataURL("image/jpeg");
 
-      await page.render({ canvasContext: ctx, viewport }).promise;
+    images.push(img);
 
-      const img = canvas.toDataURL("image/jpeg");
-
-      images.push(img);
-
-      const el = document.createElement("img");
-      el.src = img;
-      preview.appendChild(el);
-    }
-
-  } catch (e) {
-    alert("変換に失敗しました");
-    console.log(e);
+    const el=document.createElement("img");
+    el.src=img;
+    preview.appendChild(el);
   }
 };
 
 /* =====================
-   通常ダウンロード
+   共通保存関数
+   （iPhone＝共有 / PC＝DL）
 ===================== */
-document.getElementById("downloadBtn").onclick = () => {
+async function saveFile(dataUrl, filename){
 
-  if (!images.length) {
-    alert("先に変換してください");
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const file = new File([blob], filename, { type: blob.type });
+
+  // iPhone対応（共有）
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await navigator.share({
+      files: [file],
+      title: filename
+    });
     return;
   }
 
-  images.forEach((img, i) => {
+  // PC fallback（ダウンロード）
+  const a=document.createElement("a");
+  a.href=dataUrl;
+  a.download=filename;
 
-    const a = document.createElement("a");
-    a.href = img;
-    a.download = `page-${i + 1}.jpg`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
 
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+/* =====================
+   画像保存
+===================== */
+document.getElementById("download").onclick = ()=>{
+
+  if(!images.length) return alert("先に変換してください");
+
+  images.forEach((img,i)=>{
+    saveFile(img,`page-${i+1}.jpg`);
   });
 };
 
 /* =====================
-   ZIPダウンロード
+   ZIP保存（PC向け）
 ===================== */
-document.getElementById("zipBtn").onclick = async () => {
+document.getElementById("zip").onclick = async ()=>{
 
-  if (!images.length) {
-    alert("先に変換してください");
-    return;
-  }
+  if(!images.length) return alert("先に変換してください");
 
-  const zip = new JSZip();
+  const zip=new JSZip();
 
-  images.forEach((img, i) => {
-    zip.file(`page-${i + 1}.jpg`, img.split(",")[1], { base64: true });
+  images.forEach((img,i)=>{
+    zip.file(`page-${i+1}.jpg`, img.split(",")[1], {base64:true});
   });
 
-  const blob = await zip.generateAsync({ type: "blob" });
+  const blob=await zip.generateAsync({type:"blob"});
 
-  const url = URL.createObjectURL(blob);
+  const url=URL.createObjectURL(blob);
 
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "images.zip";
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="images.zip";
 
   document.body.appendChild(a);
   a.click();
@@ -182,10 +189,8 @@ document.getElementById("zipBtn").onclick = async () => {
 
   URL.revokeObjectURL(url);
 };
-</script>
 
-<!-- JSZip -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</script>
 
 </body>
 </html>
