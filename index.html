@@ -14,6 +14,7 @@ body {
   color: #333;
 }
 
+/* タブ */
 .tabs {
   display: flex;
   max-width: 360px;
@@ -35,15 +36,17 @@ body {
   color: white;
 }
 
+/* カード */
 .card {
   background: white;
   max-width: 360px;
   margin: 10px auto;
-  padding: 20px;
+  padding: 18px;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(255,182,193,0.15);
 }
 
+/* ドロップ */
 .drop {
   border: 2px dashed #ff8fab;
   padding: 15px;
@@ -59,6 +62,7 @@ body {
   display: none;
 }
 
+/* ボタン */
 button {
   width: 100%;
   margin-top: 10px;
@@ -73,10 +77,18 @@ button:active {
   transform: scale(0.95);
 }
 
+/* プレビュー */
 #preview img {
   width: 100%;
   margin-top: 10px;
   border-radius: 10px;
+}
+
+/* 通知 */
+.notice {
+  font-size: 12px;
+  color: #777;
+  margin-top: 5px;
 }
 </style>
 
@@ -86,12 +98,13 @@ button:active {
 
 <h2>picoConverter</h2>
 
+<!-- タブ -->
 <div class="tabs">
   <div class="tab active" onclick="showTab('pdf')">PDF→画像</div>
   <div class="tab" onclick="showTab('img')">画像→PDF</div>
 </div>
 
-<!-- PDF TAB -->
+<!-- PDFタブ -->
 <div id="pdfTab">
 
   <div class="card">
@@ -102,30 +115,39 @@ button:active {
     </div>
 
     <button id="convert">変換</button>
-    <button id="download">画像DL</button>
-    <button id="zip">ZIP DL</button>
+    <button id="dl">画像ダウンロード</button>
+    <button id="zip">ZIPダウンロード</button>
+
+    <p class="notice">※ZIPはPC推奨 / iPhoneは通常DL</p>
 
   </div>
 
 </div>
 
-<!-- IMG TAB -->
+<!-- 画像タブ -->
 <div id="imgTab" style="display:none;">
 
   <div class="card">
+
     <input type="file" id="imgFile" accept="image/*" multiple>
+
     <button id="toPdf">PDFにする</button>
+
+    <p class="notice" id="pdfNotice">
+PDFは「ファイルアプリ」に保存されます
+    </p>
+
   </div>
 
 </div>
 
-<!-- PREVIEW -->
+<!-- プレビュー -->
 <div class="card">
   <h3>プレビュー</h3>
   <div id="preview"></div>
 </div>
 
-<!-- LIBS -->
+<!-- ライブラリ -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -138,7 +160,7 @@ const pdfFile = document.getElementById("pdfFile");
 const drop = document.getElementById("dropArea");
 
 /* =====================
-   TAB
+   タブ切り替え
 ===================== */
 function showTab(tab){
   document.getElementById("pdfTab").style.display = tab==="pdf"?"block":"none";
@@ -146,7 +168,7 @@ function showTab(tab){
 }
 
 /* =====================
-   DROP
+   ドラッグ&ドロップ
 ===================== */
 drop.onclick = ()=>pdfFile.click();
 
@@ -166,12 +188,12 @@ drop.addEventListener("drop", e=>{
 });
 
 /* =====================
-   PDF → IMAGE + PREVIEW
+   PDF → 画像
 ===================== */
 document.getElementById("convert").onclick = async ()=>{
 
   const file = pdfFile.files[0];
-  if(!file) return alert("PDFを選んで");
+  if(!file) return alert("PDFを選んでください");
 
   preview.innerHTML = "";
   images = [];
@@ -203,11 +225,11 @@ document.getElementById("convert").onclick = async ()=>{
 };
 
 /* =====================
-   DOWNLOAD JPG
+   通常ダウンロード
 ===================== */
-document.getElementById("download").onclick = ()=>{
+document.getElementById("dl").onclick = ()=>{
 
-  if(!images.length) return alert("先に変換してね");
+  if(!images.length) return alert("先に変換してください");
 
   images.forEach((img,i)=>{
     const a=document.createElement("a");
@@ -215,42 +237,47 @@ document.getElementById("download").onclick = ()=>{
     a.download=`page-${i+1}.jpg`;
     document.body.appendChild(a);
     a.click();
-    a.remove();
+    document.body.removeChild(a);
   });
 };
 
 /* =====================
-   ZIP DOWNLOAD (FIXED)
+   ZIPダウンロード
 ===================== */
 document.getElementById("zip").onclick = async ()=>{
 
-  if(!images.length) return alert("先に変換してね");
+  if(!images.length) return alert("先に変換してください");
 
   const zip = new JSZip();
 
   images.forEach((img,i)=>{
-    const base64 = img.split(",")[1];
-    zip.file(`page-${i+1}.jpg`, base64, {base64:true});
+    zip.file(`page-${i+1}.jpg`, img.split(",")[1], {base64:true});
   });
 
   const blob = await zip.generateAsync({type:"blob"});
 
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "images.zip";
+
+  const a=document.createElement("a");
+  a.href=url;
+  a.download="images.zip";
   document.body.appendChild(a);
   a.click();
-  a.remove();
+  document.body.removeChild(a);
+
+  URL.revokeObjectURL(url);
 };
 
 /* =====================
-   IMAGE → PDF (FIXED)
+   画像 → PDF
 ===================== */
 document.getElementById("toPdf").onclick = async ()=>{
 
   const files = document.getElementById("imgFile").files;
-  if(!files.length) return alert("画像を選んで");
+  if(!files.length) return alert("画像を選んでください");
+
+  const notice = document.getElementById("pdfNotice");
+  notice.textContent = "PDFを作成中…";
 
   const {jsPDF}=window.jspdf;
   const pdf=new jsPDF();
@@ -277,6 +304,8 @@ document.getElementById("toPdf").onclick = async ()=>{
   }
 
   pdf.save("images.pdf");
+
+  notice.textContent = "ファイルアプリに保存されました";
 };
 
 </script>
