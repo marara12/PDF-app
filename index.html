@@ -2,6 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>picoPDF</title>
 
 <style>
@@ -18,7 +19,7 @@ p { color: #777; font-size: 14px; }
 
 .container {
   background: white;
-  padding: 30px 20px;
+  padding: 40px 20px;
   border-radius: 16px;
   max-width: 320px;
   margin: 30px auto;
@@ -33,7 +34,21 @@ button {
   padding: 10px 18px;
   border-radius: 12px;
 }
+button:active {
+  transform: scale(0.95);
+  background: #ff6f91;
+}
+  @keyframes pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
 
+.success {
+  animation: pop 0.4s ease;
+  color: #ff6fa5;
+  font-weight: bold;
+}
 canvas {
   max-width: 100%;
   margin-top: 20px;
@@ -45,12 +60,18 @@ canvas {
 <body>
 
 <h1>picoPDF</h1>
-<p>PDFを画像に変換</p>
+<p>① PDFを選ぶ → ② 変換する</p>
 
 <div class="container">
   <input type="file" id="file" accept="application/pdf"><br>
+  <div id="drop-area">
+  <p>ここにPDFを入れる or タップして選択</p>
+  <input type="file" id="file" accept="application/pdf">
+</div>
   <button id="convert">変換する</button>
-  <p id="loading" style="display:none;">変換中…</p>
+  <p id="empty">PDFを選択してください</p>
+  <p id="loading" style="display:none;">変換中…💭</p>
+  <p id="done" style="display:none;">保存しました！</p>
 </div>
 
 <canvas id="canvas"></canvas>
@@ -63,35 +84,72 @@ let ctx = canvas.getContext("2d");
 
 document.getElementById("convert").onclick = async () => {
   const file = document.getElementById("file").files[0];
+  if (!file) {document.getElementById("empty").style.display = "none";
+    alert("PDFを選んでね！");
+    return;
+  }
+const button = document.getElementById("convert");
+const fileInput = document.getElementById("file");
+const loading = document.getElementById("loading");
+const done = document.getElementById("done");
+
+// 最初はボタン押せない
+button.disabled = true;
+
+// ファイル選んだら押せる
+fileInput.addEventListener("change", () => {
+  button.disabled = !fileInput.files.length;
+});
+
+// 変換処理
+button.onclick = async () => {
+
+  const file = fileInput.files[0];
   if (!file) {
     alert("PDFを選んでね！");
     return;
   }
 
-  document.getElementById("loading").style.display = "block";
+  // 状態リセット
+  done.style.display = "none";
+  loading.style.display = "block";
 
   const arrayBuffer = await file.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
-  const page = await pdf.getPage(1);
 
-  const viewport = page.getViewport({scale: 2});
+  const totalPages = pdf.numPages;
 
-  canvas.width = viewport.width;
-  canvas.height = viewport.height;
+  for (let i = 1; i <= totalPages; i++) {
 
-  await page.render({
-    canvasContext: ctx,
-    viewport: viewport
-  }).promise;
+    // 進捗表示
+    loading.textContent = `変換中… ${i}/${totalPages}`;
 
-  document.getElementById("loading").style.display = "none";
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({scale: 2});
 
-  // ダウンロード
-  const link = document.createElement("a");
-  link.href = canvas.toDataURL("image/jpeg");
-  link.download = "output.jpg";
-  link.click();
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    await page.render({
+      canvasContext: ctx,
+      viewport: viewport
+    }).promise;
+
+    // ダウンロード
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/jpeg");
+    link.download = `page-${i}.jpg`;
+    link.click();
+  }
+
+  // 完了
+  loading.style.display = "none";
+  done.style.display = "block";
 };
+
 </script>
 
 </body>
