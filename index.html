@@ -6,89 +6,45 @@
 <title>picoConverter</title>
 
 <style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-  background: #fafafa;
-  text-align: center;
-  padding: 20px;
-  color: #333;
+body{
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  background:#fafafa;
+  text-align:center;
+  padding:20px;
+  color:#333;
 }
 
-/* タブ */
-.tabs {
-  display: flex;
-  max-width: 360px;
-  margin: 0 auto 15px;
-  background: white;
-  border-radius: 14px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(255,182,193,0.15);
+.card{
+  background:white;
+  max-width:400px;
+  margin:10px auto;
+  padding:18px;
+  border-radius:16px;
+  box-shadow:0 4px 12px rgba(255,182,193,0.15);
 }
 
-.tab {
-  flex: 1;
-  padding: 12px;
-  cursor: pointer;
+button{
+  width:100%;
+  margin-top:10px;
+  padding:12px;
+  border:none;
+  border-radius:12px;
+  background:#ff8fab;
+  color:white;
 }
 
-.tab.active {
-  background: #ff8fab;
-  color: white;
+button:active{
+  transform:scale(0.97);
 }
 
-/* カード */
-.card {
-  background: white;
-  max-width: 360px;
-  margin: 10px auto;
-  padding: 18px;
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(255,182,193,0.15);
+input{
+  margin-top:10px;
 }
 
-/* ドロップ */
-.drop {
-  border: 2px dashed #ff8fab;
-  padding: 15px;
-  border-radius: 14px;
-  cursor: pointer;
-}
-
-.drop.dragover {
-  background: #ffe4ec;
-}
-
-.drop input {
-  display: none;
-}
-
-/* ボタン */
-button {
-  width: 100%;
-  margin-top: 10px;
-  padding: 12px;
-  border: none;
-  border-radius: 14px;
-  background: #ff8fab;
-  color: white;
-}
-
-button:active {
-  transform: scale(0.95);
-}
-
-/* プレビュー */
-#preview img {
-  width: 100%;
-  margin-top: 10px;
-  border-radius: 10px;
-}
-
-/* 通知 */
-.notice {
-  font-size: 12px;
-  color: #777;
-  margin-top: 5px;
+#preview img{
+  width:100%;
+  margin-top:10px;
+  border-radius:10px;
 }
 </style>
 
@@ -98,143 +54,98 @@ button:active {
 
 <h2>picoConverter</h2>
 
-<!-- タブ -->
-<div class="tabs">
-  <div class="tab active" onclick="showTab('pdf')">PDF→画像</div>
-  <div class="tab" onclick="showTab('img')">画像→PDF</div>
+<div class="card">
+  <h3>PDF → 画像</h3>
+
+  <input type="file" id="pdfFile" accept="application/pdf">
+
+  <button id="convertBtn">変換</button>
+  <button id="downloadBtn">ダウンロード</button>
+  <button id="zipBtn">ZIPダウンロード</button>
 </div>
 
-<!-- PDFタブ -->
-<div id="pdfTab">
-
-  <div class="card">
-
-    <div class="drop" id="dropArea">
-      <p>PDFをドラッグ or タップ</p>
-      <input type="file" id="pdfFile" accept="application/pdf">
-    </div>
-
-    <button id="convert">変換</button>
-    <button id="dl">画像ダウンロード</button>
-    <button id="zip">ZIPダウンロード</button>
-
-    <p class="notice">※ZIPはPC推奨 / iPhoneは通常DL</p>
-
-  </div>
-
-</div>
-
-<!-- 画像タブ -->
-<div id="imgTab" style="display:none;">
-
-  <div class="card">
-
-    <input type="file" id="imgFile" accept="image/*" multiple>
-
-    <button id="toPdf">PDFにする</button>
-
-    <p class="notice" id="pdfNotice">
-PDFは「ファイルアプリ」に保存されます
-    </p>
-
-  </div>
-
-</div>
-
-<!-- プレビュー -->
 <div class="card">
   <h3>プレビュー</h3>
   <div id="preview"></div>
 </div>
 
-<!-- ライブラリ -->
+<!-- PDF.js -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <script>
+/* =====================
+   ★重要：worker設定（これで死ぬバグ防止）
+===================== */
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
 
 let images = [];
-const preview = document.getElementById("preview");
-const pdfFile = document.getElementById("pdfFile");
-const drop = document.getElementById("dropArea");
 
 /* =====================
-   タブ切り替え
+   変換
 ===================== */
-function showTab(tab){
-  document.getElementById("pdfTab").style.display = tab==="pdf"?"block":"none";
-  document.getElementById("imgTab").style.display = tab==="img"?"block":"none";
-}
+document.getElementById("convertBtn").onclick = async () => {
 
-/* =====================
-   ドラッグ&ドロップ
-===================== */
-drop.onclick = ()=>pdfFile.click();
+  const file = document.getElementById("pdfFile").files[0];
+  const preview = document.getElementById("preview");
 
-drop.addEventListener("dragover", e=>{
-  e.preventDefault();
-  drop.classList.add("dragover");
-});
+  if (!file) {
+    alert("PDFを選んでください");
+    return;
+  }
 
-drop.addEventListener("dragleave", ()=>{
-  drop.classList.remove("dragover");
-});
+  try {
 
-drop.addEventListener("drop", e=>{
-  e.preventDefault();
-  drop.classList.remove("dragover");
-  pdfFile.files = e.dataTransfer.files;
-});
+    images = [];
+    preview.innerHTML = "";
 
-/* =====================
-   PDF → 画像
-===================== */
-document.getElementById("convert").onclick = async ()=>{
+    const buffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
 
-  const file = pdfFile.files[0];
-  if(!file) return alert("PDFを選んでください");
+    for (let i = 1; i <= pdf.numPages; i++) {
 
-  preview.innerHTML = "";
-  images = [];
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2 });
 
-  const buffer = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({data:buffer}).promise;
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
 
-  for(let i=1;i<=pdf.numPages;i++){
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-    const page = await pdf.getPage(i);
-    const viewport = page.getViewport({scale:2});
+      await page.render({ canvasContext: ctx, viewport }).promise;
 
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
+      const img = canvas.toDataURL("image/jpeg");
 
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+      images.push(img);
 
-    await page.render({canvasContext:ctx,viewport}).promise;
+      const el = document.createElement("img");
+      el.src = img;
+      preview.appendChild(el);
+    }
 
-    const img = canvas.toDataURL("image/jpeg");
-
-    images.push(img);
-
-    const el = document.createElement("img");
-    el.src = img;
-    preview.appendChild(el);
+  } catch (e) {
+    alert("変換に失敗しました");
+    console.log(e);
   }
 };
 
 /* =====================
    通常ダウンロード
 ===================== */
-document.getElementById("dl").onclick = ()=>{
+document.getElementById("downloadBtn").onclick = () => {
 
-  if(!images.length) return alert("先に変換してください");
+  if (!images.length) {
+    alert("先に変換してください");
+    return;
+  }
 
-  images.forEach((img,i)=>{
-    const a=document.createElement("a");
-    a.href=img;
-    a.download=`page-${i+1}.jpg`;
+  images.forEach((img, i) => {
+
+    const a = document.createElement("a");
+    a.href = img;
+    a.download = `page-${i + 1}.jpg`;
+
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -244,71 +155,37 @@ document.getElementById("dl").onclick = ()=>{
 /* =====================
    ZIPダウンロード
 ===================== */
-document.getElementById("zip").onclick = async ()=>{
+document.getElementById("zipBtn").onclick = async () => {
 
-  if(!images.length) return alert("先に変換してください");
+  if (!images.length) {
+    alert("先に変換してください");
+    return;
+  }
 
   const zip = new JSZip();
 
-  images.forEach((img,i)=>{
-    zip.file(`page-${i+1}.jpg`, img.split(",")[1], {base64:true});
+  images.forEach((img, i) => {
+    zip.file(`page-${i + 1}.jpg`, img.split(",")[1], { base64: true });
   });
 
-  const blob = await zip.generateAsync({type:"blob"});
+  const blob = await zip.generateAsync({ type: "blob" });
 
   const url = URL.createObjectURL(blob);
 
-  const a=document.createElement("a");
-  a.href=url;
-  a.download="images.zip";
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "images.zip";
+
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
 
   URL.revokeObjectURL(url);
 };
-
-/* =====================
-   画像 → PDF
-===================== */
-document.getElementById("toPdf").onclick = async ()=>{
-
-  const files = document.getElementById("imgFile").files;
-  if(!files.length) return alert("画像を選んでください");
-
-  const notice = document.getElementById("pdfNotice");
-  notice.textContent = "PDFを作成中…";
-
-  const {jsPDF}=window.jspdf;
-  const pdf=new jsPDF();
-
-  for(let i=0;i<files.length;i++){
-
-    const data = await new Promise(r=>{
-      const f=new FileReader();
-      f.onload=e=>r(e.target.result);
-      f.readAsDataURL(files[i]);
-    });
-
-    const img=new Image();
-    img.src=data;
-
-    await new Promise(r=>img.onload=r);
-
-    const w=pdf.internal.pageSize.getWidth();
-    const h=(img.height/img.width)*w;
-
-    if(i!==0) pdf.addPage();
-
-    pdf.addImage(img,"JPEG",0,0,w,h);
-  }
-
-  pdf.save("images.pdf");
-
-  notice.textContent = "ファイルアプリに保存されました";
-};
-
 </script>
+
+<!-- JSZip -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 </body>
 </html>
