@@ -2,11 +2,11 @@
 <html>
 <head>
 <meta charset="UTF-8">
-  
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <meta name="description" content="PDFを画像に変換、画像をPDFに変換できる無料ツール。iPhone・PC対応、インストール不要。">
-  <title>PDF画像変換ツール|無料で画像とPDFを相互変換</title>
-<h1>PDF画像相互変換ツール</h1>
+<title>PDF画像変換ツール｜無料で画像とPDFを相互変換</title>
+
 <style>
 body{
   font-family:-apple-system,BlinkMacSystemFont,sans-serif;
@@ -14,6 +14,10 @@ body{
   text-align:center;
   padding:20px;
   color:#333;
+}
+
+h1{
+  font-size:20px;
 }
 
 .tabs{
@@ -65,13 +69,35 @@ button:active{
   border-radius:10px;
 }
 
+/* =====================
+   TOAST
+===================== */
+#toast{
+  position:fixed;
+  bottom:30px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#ff8fab;
+  color:white;
+  padding:10px 18px;
+  border-radius:20px;
+  opacity:0;
+  transition:0.3s;
+  pointer-events:none;
+  font-size:14px;
+}
+
+#toast.show{
+  opacity:1;
+  transform:translateX(-50%) translateY(-10px);
+}
 </style>
 
 </head>
 
 <body>
 
-
+<h1>PDF画像変換ツール</h1>
 
 <!-- タブ -->
 <div class="tabs">
@@ -104,7 +130,10 @@ button:active{
 
 </div>
 
-<!-- ライブラリ -->
+<!-- toast -->
+<div id="toast"></div>
+
+<!-- libs -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
@@ -117,12 +146,28 @@ let images=[];
 const preview=document.getElementById("preview");
 
 /* =====================
+   TOAST
+===================== */
+function showToast(message){
+  const toast=document.getElementById("toast");
+  toast.textContent=message;
+  toast.classList.add("show");
+
+  setTimeout(()=>{
+    toast.classList.remove("show");
+  },2000);
+}
+
+/* =====================
    タブ切替
 ===================== */
 function switchTab(tab){
 
-  document.getElementById("pdf2img").style.display = tab==="pdf2img"?"block":"none";
-  document.getElementById("img2pdf").style.display = tab==="img2pdf"?"block":"none";
+  document.getElementById("pdf2img").style.display =
+    tab==="pdf2img"?"block":"none";
+
+  document.getElementById("img2pdf").style.display =
+    tab==="img2pdf"?"block":"none";
 
   document.querySelectorAll(".tab").forEach((t,i)=>{
     t.classList.toggle("active", i === (tab==="pdf2img"?0:1));
@@ -135,7 +180,7 @@ function switchTab(tab){
 document.getElementById("convertPdf").onclick = async ()=>{
 
   const file=document.getElementById("pdfFile").files[0];
-  if(!file) return alert("PDFを選んでください");
+  if(!file) return showToast("PDFを選んでください");
 
   images=[];
 
@@ -158,23 +203,18 @@ document.getElementById("convertPdf").onclick = async ()=>{
     images.push(canvas.toDataURL("image/jpeg"));
   }
 
-  alert("変換完了");
+  showToast("変換完了！");
 };
 
 /* =====================
-   保存（保存先選択対応）
+   保存
 ===================== */
 async function saveWithPicker(blob, filename){
 
-  // Chrome / Edge（本物の保存先選択）
   if(window.showSaveFilePicker){
 
     const handle = await showSaveFilePicker({
-      suggestedName: filename,
-      types:[{
-        description:"file",
-        accept:{"application/octet-stream":[".jpg",".pdf"]}
-      }]
+      suggestedName: filename
     });
 
     const writable = await handle.createWritable();
@@ -184,7 +224,6 @@ async function saveWithPicker(blob, filename){
     return;
   }
 
-  // iPhone（ファイルアプリ）
   const file = new File([blob], filename, {type:blob.type});
 
   if(navigator.canShare && navigator.canShare({files:[file]})){
@@ -192,7 +231,6 @@ async function saveWithPicker(blob, filename){
     return;
   }
 
-  // fallback
   const url = URL.createObjectURL(blob);
   const a=document.createElement("a");
   a.href=url;
@@ -210,7 +248,7 @@ async function saveWithPicker(blob, filename){
 ===================== */
 document.getElementById("saveImgs").onclick = async ()=>{
 
-  if(!images.length) return alert("先に変換してください");
+  if(!images.length) return showToast("先に変換してください");
 
   for(let i=0;i<images.length;i++){
 
@@ -218,8 +256,9 @@ document.getElementById("saveImgs").onclick = async ()=>{
     const blob=await res.blob();
 
     await saveWithPicker(blob,`page-${i+1}.jpg`);
-    showToast("画像を保存しました！");
   }
+
+  showToast("画像を保存しました！");
 };
 
 /* =====================
@@ -228,7 +267,7 @@ document.getElementById("saveImgs").onclick = async ()=>{
 document.getElementById("convertImg").onclick = async ()=>{
 
   const files=document.getElementById("imgFile").files;
-  if(!files.length) return alert("画像を選んでください");
+  if(!files.length) return showToast("画像を選んでください");
 
   preview.innerHTML="";
 
@@ -263,11 +302,10 @@ document.getElementById("convertImg").onclick = async ()=>{
   const blob = pdf.output("blob");
 
   await saveWithPicker(blob,"converted.pdf");
+
   showToast("PDFを保存しました！");
-}
 };
 
-  
 </script>
 
 </body>
