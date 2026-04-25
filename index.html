@@ -217,9 +217,9 @@ document.getElementById("saveImgs").onclick = async ()=>{
     const res=await fetch(images[i]);
     const blob=await res.blob();
 
-    await saveWithPicker(blob,`page-${i+1}.jpg`);showToast("保存しました！");
+    await saveWithPicker(blob,`page-${i+1}.jpg`);showToast("画像を保存しました！");
 
-};
+}
 
 /* =====================
    画像 → PDF
@@ -262,7 +262,7 @@ document.getElementById("convertImg").onclick = async ()=>{
   const blob = pdf.output("blob");
 
   await saveWithPicker(blob,"converted.pdf");showToast("保存しました！");
-};
+}
 
   
 </script>
