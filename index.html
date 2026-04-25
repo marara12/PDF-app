@@ -64,6 +64,26 @@ button:active{
   margin-top:10px;
   border-radius:10px;
 }
+  <style>
+#toast{
+  position:fixed;
+  bottom:30px;
+  left:50%;
+  transform:translateX(-50%);
+  background:#ff8fab;
+  color:white;
+  padding:10px 18px;
+  border-radius:20px;
+  opacity:0;
+  pointer-events:none;
+  transition:0.3s;
+}
+
+#toast.show{
+  opacity:1;
+  transform:translateX(-50%) translateY(-10px);
+}
+</style>
 </style>
 
 </head>
@@ -86,7 +106,7 @@ button:active{
   <input type="file" id="pdfFile" accept="application/pdf">
 
   <button id="convertPdf">変換</button>
-  <button id="saveImgs">保存先を選んで保存</button>
+  <button id="saveImgs">保存</button>
 
 </div>
 
@@ -262,7 +282,16 @@ document.getElementById("convertImg").onclick = async ()=>{
 
   await saveWithPicker(blob,"converted.pdf");
 };
+<div id="toast">保存しました！</div>
+  function showToast(message){
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.classList.add("show");
 
+  setTimeout(()=>{
+    toast.classList.remove("show");
+  },2000);
+}
 </script>
 
 </body>
